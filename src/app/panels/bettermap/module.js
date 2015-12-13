@@ -75,6 +75,44 @@ function (angular, app, _, L, localRequire) {
        */
       provider: 'MapQuestOpen',
       /** @scratch /panels/bettermap/5
+       * variant:: The map variant to use
+       */
+      variant: '',
+      /** @scratch /panels/bettermap/5
+       * providers:: The map providers available
+       */
+      providers: ['OpenStreetMap','OpenSeaMap','Thunderforest','OpenMapSurfer','Hydda','MapQuestOpen','MapBox','Stamen','Esri','OpenWeatherMap','HERE','Acetate','FreeMapSK','MtbMap','TianDiTu','MapABC','GaoDe'],
+      /** @scratch /panels/bettermap/5
+       * variants:: The map variants available
+       */
+      variants: {
+			'OpenStreetMap':['Mapnik','BlackAndWhite','DE','HOT'],
+			'OpenSeaMap':[],
+			'Thunderforest':['OpenCycleMap','Transport','Landscape','Outdoors'],
+			'OpenMapSurfer':['Roads','AdminBounds','Grayscale'],
+			'Hydda':['Full','Base','RoadsAndLabels'],
+			'MapQuestOpen':['OSM','Aerial'],
+			'MapBox':[],
+			'Stamen':['Toner','TonerBackground','TonerHybrid','TonerLines','TonerLabels','TonerLite','Terrain','TerrainBackground','Watercolor'],
+			'Esri':['WorldStreetMap','DeLorme','WorldTopoMap','WorldImagery','WorldTerrain','WorldShadedRelief','WorldPhysical','OceanBasemap','NatGeoWorldMap','WorldGrayCanvas'],
+			'OpenWeatherMap':['Clouds','CloudsClassic','Precipitation','PrecipitationClassic','Rain','RainClassic','Pressure','PressureContour','Wind','Temperature','Snow'],
+			'HERE':['normalDay','normalDayCustom','normalDayGrey','normalDayMobile','normalDayGreyMobile','normalDayTransit','normalDayTransitMobile','normalNight','normalNightMobile','normalNightGrey','normalNightGreyMobile','carnavDayGrey','hybridDay','hybridDayMobile','pedestrianDay','pedestrianNight','satelliteDay','terrainDay','terrainDayMobile'],
+			'Acetate':['basemap','terrain','all','foreground','roads','labels','hillshading'],
+			'FreeMapSK':[],
+			'MtbMap':[],
+			'TianDiTu':['Satellite','Terrain'],
+			'MapABC':[],
+			'GaoDe':['Satellite']
+		  },
+      /** @scratch /panels/bettermap/5
+       * provider_change:: Tripped when provider changes
+       */		  
+	  provider_change: false,
+      /** @scratch /panels/bettermap/5
+       * variant_change:: Tripped when variant changes
+       */		  
+	  variant_change: false,	  
+      /** @scratch /panels/bettermap/5
        * size:: The number of documents to use when drawing the map
        */
       size    : 1000,
@@ -113,6 +151,13 @@ function (angular, app, _, L, localRequire) {
     };
 
     $scope.get_data = function(segment,query_id) {
+		var
+        _segment,
+        request,
+        boolQuery,
+        queries,
+        sort;
+        
       $scope.require(['./leaflet/plugins'], function () {
         $scope.panel.error =  false;
 
@@ -136,23 +181,27 @@ function (angular, app, _, L, localRequire) {
           timeField = timeField[0];
         }
 
-        var _segment = _.isUndefined(segment) ? 0 : segment;
+      var _segment = _.isUndefined(segment) ? 0 : segment;
+      $scope.segment = _segment;
 
-        $scope.panel.queries.ids = querySrv.idsByMode($scope.panel.queries);
-        var queries = querySrv.getQueryObjs($scope.panel.queries.ids);
+      $scope.panel.queries.ids = querySrv.idsByMode($scope.panel.queries);
 
-        var boolQuery = $scope.ejs.BoolQuery();
-        _.each(queries,function(q) {
-          boolQuery = boolQuery.should(querySrv.toEjsObj(q));
-        });
+      queries = querySrv.getQueryObjs($scope.panel.queries.ids);
 
-        var request = $scope.ejs.Request()
-          .query($scope.ejs.FilteredQuery(
-            boolQuery,
-            filterSrv.getBoolFilter(filterSrv.ids()).must($scope.ejs.ExistsFilter($scope.panel.field))
-          ))
-          .fields([$scope.panel.field,$scope.panel.tooltip])
-          .size($scope.panel.size);
+      boolQuery = $scope.ejs.BoolQuery();
+      _.each(queries,function(q) {
+        boolQuery = boolQuery.should(querySrv.toEjsObj(q));
+      });
+
+		var request = $scope.ejs.Request();
+      request = request.query(
+        $scope.ejs.FilteredQuery(
+          boolQuery,
+          filterSrv.getBoolFilter(filterSrv.ids()).must($scope.ejs.ExistsFilter($scope.panel.field))
+        )
+      )
+      //.fields([$scope.panel.field,$scope.panel.tooltip])
+      .size($scope.panel.size);
 
         if(!_.isNull(timeField)) {
           request = request.sort(timeField,'desc');
@@ -160,10 +209,8 @@ function (angular, app, _, L, localRequire) {
 
         $scope.populate_modal(request);
 
-        var results = $scope.ejs.doSearch(dashboard.indices[_segment], request);
-
         // Populate scope when we have results
-        results.then(function(results) {
+		$scope.ejs.doSearch(dashboard.indices[_segment], request, $scope.panel.size).then(function(results) {
           $scope.panelMeta.loading = false;
 
           if(_segment === 0) {
@@ -183,10 +230,13 @@ function (angular, app, _, L, localRequire) {
 
             // Keep only what we need for the set
             $scope.data = $scope.data.slice(0,$scope.panel.size).concat(_.map(results.hits.hits, function(hit) {
-              return {
-                coordinates : new L.LatLng(hit.fields[$scope.panel.field][1],hit.fields[$scope.panel.field][0]),
-                tooltip : hit.fields[$scope.panel.tooltip]
+				var lat = hit['_source'][$scope.panel.field]['lat'];
+				var lon = hit['_source'][$scope.panel.field]['lon'];
+              var o = {
+                coordinates : new L.LatLng(lat,lon),
+                tooltip : hit['_source'][$scope.panel.tooltip]
               };
+              return o;
             }));
 
           } else {
@@ -218,35 +268,59 @@ function (angular, app, _, L, localRequire) {
 
         // Receive render events
         scope.$on('draw',function(){
-          render_panel();
+			if (scope.panel.provider_change || scope.panel.variant_change && !_.isUndefined(map)) {
+				var unmap;
+				map=unmap;
+				while (elem[0].firstChild) {
+					elem[0].removeChild(elem[0].firstChild);
+				}
+				elem[0]._leaflet=unmap;
+			}
+			scope.panel.provider_change = scope.panel.variant_change = false;
+          //render_panel();
         });
 
         scope.$on('render', function(){
+			if (scope.panel.provider_change || scope.panel.variant_change && !_.isUndefined(map)) {
+				var unmap;
+				map=unmap;
+				while (elem[0].firstChild) {
+					elem[0].removeChild(elem[0].firstChild);
+				}
+				elem[0]._leaflet=unmap;
+			}
+			scope.panel.provider_change = scope.panel.variant_change = false;
           if(!_.isUndefined(map)) {
             map.invalidateSize();
             map.getPanes();
           }
+		  else {render_panel();}
         });
 
         var map, layerGroup;
-
-        function render_panel() {
-          elem.css({height:scope.panel.height||scope.row.height});
-
-          scope.require(['./leaflet/plugins', './leaflet/providers'], function () {
-            scope.panelMeta.loading = false;
-            L.Icon.Default.imagePath = 'app/panels/bettermap/leaflet/images';
-            if(_.isUndefined(map)) {
-              map = L.map(scope.$id, {
-                scrollWheelZoom: false,
+		function map_factory() {
+			return L.map(scope.$id, {
+                scrollWheelZoom: true,
                 center: [40, -86],
                 zoom: 10
               });
+		}
+
+        function render_panel() {
+          elem.css({height:scope.panel.height||scope.row.height});
+		
+          scope.require(['./leaflet/plugins', './leaflet/providers', './leaflet/api_skel', './leaflet/api'], function () {
+            scope.panelMeta.loading = false;
+            L.Icon.Default.imagePath = 'app/panels/bettermap/leaflet/images';
+            if(_.isUndefined(map)) {
+              map = map_factory();
 
               // This could be made more configurable?
-              L.tileLayer.provider(scope.panel.provider, {
+              L.tileLayer.provider(scope.panel.provider+'.'+scope.panel.variant, {
                 maxZoom: 18,
-                minZoom: 2
+                minZoom: 2,
+                app_id: api.app_id(),
+                app_code: api.app_code()
               }).addTo(map);
               layerGroup = new L.MarkerClusterGroup({maxClusterRadius:30});
             } else {

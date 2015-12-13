@@ -8,7 +8,13 @@
     <div class="editor-option">
       <form>
         <h6>Map providers</h6>
-        <select class="input-medium" ng-model="panel.provider" ng-options="f for f in ['OpenStreetMap','OpenSeaMap','Thunderforest','OpenMapSurfer','Hydda','MapQuestOpen','MapBox','Stamen','Esri','OpenWeatherMap','HERE','Acetate','FreeMapSK','MtbMap','TianDiTu','MapABC','GaoDe']"></select>
+        <select class="input-medium" ng-model="panel.provider" ng-options="f for f in panel.providers" ng-change="panel.provider_change=true"></select>
+      </form>
+    </div>
+    <div class="editor-option">
+      <form>
+        <h6>Variant</h6>
+        <select class="input-medium" ng-model="panel.variant" ng-options="f for f in panel.variants[panel.provider]" ng-change="panel.variant_change=true"></select>
       </form>
     </div>
     <div class="editor-option">

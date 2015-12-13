@@ -5,6 +5,7 @@
 
   L.TileLayer.Provider = L.TileLayer.extend({
     initialize: function (arg, options) {
+		
       var providers = L.TileLayer.Provider.providers;
 
       var parts = arg.split('.');
@@ -58,6 +59,7 @@
       provider.options.attribution = attributionReplacer(provider.options.attribution);
 
       // Compute final options combining provider options with any user overrides
+      
       var layerOpts = L.Util.extend({}, provider.options, options);
       console.log(provider.url, layerOpts);
       L.TileLayer.prototype.initialize.call(this, provider.url, layerOpts);
@@ -339,7 +341,7 @@
        * envirionments.
        */
       url:
-        'http://{s}.{base}.maps.cit.api.here.com/maptile/2.1/' +
+        'https://{s}.{base}.maps.cit.api.here.com/maptile/2.1/' +
         'maptile/{mapID}/{variant}/{z}/{x}/{y}/256/png8?' +
         'app_id={app_id}&app_code={app_code}',
       options: {
@@ -347,8 +349,6 @@
           'Map &copy; 1987-2014 <a href="http://developer.here.com">HERE</a>',
         subdomains: '1234',
         mapID: 'newest',
-        'app_id': '<insert your app_id here>',
-        'app_code': '<insert your app_code here>',
         base: 'base',
         variant: 'normal.day',
         minZoom: 0,
