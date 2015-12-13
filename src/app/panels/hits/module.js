@@ -113,28 +113,27 @@ define([
       }
 
       var _segment = _.isUndefined(segment) ? 0 : segment;
-      var request = $scope.ejs.Request().indices(dashboard.indices[_segment]);
+      var request = $scope.ejs.Request();
 
       $scope.panel.queries.ids = querySrv.idsByMode($scope.panel.queries);
       var queries = querySrv.getQueryObjs($scope.panel.queries.ids);
-
+        
       // Build the question part of the query
       _.each(queries, function(q) {
         var _q = $scope.ejs.FilteredQuery(
           querySrv.toEjsObj(q),
           filterSrv.getBoolFilter(filterSrv.ids()));
 
-        request = request
-          .facet($scope.ejs.QueryFacet(q.id)
-            .query(_q)
-          ).size(0);
+        request = request.agg(
+          $scope.ejs.FilterAggregation(q.id).filter($scope.ejs.QueryFilter(_q))
+        ).size(0);
       });
 
       // Populate the inspector panel
-      $scope.inspector = angular.toJson(JSON.parse(request.toString()),true);
+      $scope.inspector = request.toJSON();
 
       // Then run it
-      var results = request.doSearch();
+      var results = $scope.ejs.doSearch(dashboard.indices[_segment], request);
 
       // Populate scope when we have results
       results.then(function(results) {
@@ -155,10 +154,10 @@ define([
         if($scope.query_id === query_id) {
           var i = 0;
           _.each(queries, function(q) {
-            var v = results.facets[q.id];
+            var v = results.aggregations[q.id];
             var hits = _.isUndefined($scope.data[i]) || _segment === 0 ?
-              v.count : $scope.data[i].hits+v.count;
-            $scope.hits += v.count;
+              v.doc_count : $scope.data[i].hits+v.doc_count;
+            $scope.hits += v.doc_count;
 
             // Create series
             $scope.data[i] = {
@@ -281,7 +280,11 @@ define([
             var value = scope.panel.chart === 'bar' ?
               item.datapoint[1] : item.datapoint[1][0][1];
             $tooltip
-              .html(kbn.query_color_dot(item.series.color, 20) + ' ' + item.series.label + " (" + value.toFixed(0) + ")")
+              .html(
+                  kbn.query_color_dot(item.series.color, 20) + ' ' +
+                  item.series.label + " (" + value.toFixed(0) +
+                  (scope.panel.chart === 'pie' ? (", " + Math.round(item.datapoint[0]) + "%") : "") + ")"
+                  )
               .place_tt(pos.pageX, pos.pageY);
           } else {
             $tooltip.remove();

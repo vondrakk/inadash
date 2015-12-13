@@ -21,12 +21,17 @@ require.config({
     'angular-dragdrop':       '../vendor/angular/angular-dragdrop',
     'angular-strap':          '../vendor/angular/angular-strap',
     'angular-sanitize':       '../vendor/angular/angular-sanitize',
+    'angular-resource':       '../vendor/angular/angular-resource',
+    'angular-route':          '../vendor/angular/angular-route',
+    'angular-loader':         '../vendor/angular/angular-loader',
     timepicker:               '../vendor/angular/timepicker',
     datepicker:               '../vendor/angular/datepicker',
     bindonce:                 '../vendor/angular/bindonce',
 
     lodash:                   'components/lodash.extended',
     'lodash-src':             '../vendor/lodash',
+    'underscore.string':      '../vendor/underscore.string',
+    'simple_statistics':      '../vendor/simple_statistics',
     bootstrap:                '../vendor/bootstrap/bootstrap',
 
     jquery:                   '../vendor/jquery/jquery-1.8.0',
@@ -42,12 +47,15 @@ require.config({
     'jquery.flot.stackpercent':'../vendor/jquery/jquery.flot.stackpercent',
     'jquery.flot.time':       '../vendor/jquery/jquery.flot.time',
     'jquery.flot.byte':       '../vendor/jquery/jquery.flot.byte',
+    'jquery.flot.threshold':  '../vendor/jquery/jquery.flot.threshold',
+     multiselect:             '../vendor/jquery/jquery.multiselect',
 
 
     modernizr:                '../vendor/modernizr-2.6.1',
     numeral:                  '../vendor/numeral',
     jsonpath:                 '../vendor/jsonpath',
     elasticjs:                '../vendor/elasticjs/elastic-angular-client',
+    elasticsearch:            '../vendor/elasticsearch.angular'
   },
   shim: {
     angular: {
@@ -82,6 +90,7 @@ require.config({
     'jquery.flot.stack':    ['jquery', 'jquery.flot'],
     'jquery.flot.stackpercent':['jquery', 'jquery.flot'],
     'jquery.flot.time':     ['jquery', 'jquery.flot'],
+    'jquery.flot.threshold':['jquery', 'jquery.flot'],
 
     'angular-sanitize':     ['angular'],
     'angular-cookies':      ['angular'],
@@ -89,15 +98,15 @@ require.config({
     'angular-loader':       ['angular'],
     'angular-mocks':        ['angular'],
     'angular-resource':     ['angular'],
-    'angular-route':        ['angular'],
     'angular-touch':        ['angular'],
+    'angular-route':        ['angular'],
     'bindonce':             ['angular'],
     'angular-strap':        ['angular', 'bootstrap','timepicker', 'datepicker'],
 
     timepicker:             ['jquery', 'bootstrap'],
     datepicker:             ['jquery', 'bootstrap'],
-
-    elasticjs:              ['angular', '../vendor/elasticjs/elastic']
+    elasticsearch:          ['angular'],
+    elasticjs:              ['elasticsearch', '../vendor/elasticjs/elastic']
   },
   waitSeconds: 60,
 });

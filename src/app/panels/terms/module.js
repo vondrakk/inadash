@@ -115,17 +115,17 @@ function (angular, app, _, $, kbn) {
         ids         : []
       },
       /** @scratch /panels/terms/5
+       * multiterms:: Multi terms: used to either filterSrv
+       */
+      multiterms  : [],
+      /** @scratch /panels/terms/5
+       * fmode:: Field mode: normal or script
+       */
+      fmode       : 'normal',
+      /** @scratch /panels/terms/5
        * tmode:: Facet mode: terms or terms_stats
        */
       tmode       : 'terms',
-      /** @scratch /panels/terms/5
-       * tsums:: Facet mode: sum values or keep separate
-       */
-      tsums       : false,
-      /** @scratch /panels/terms/5
-       * dtype:: Handle data as known type
-       */
-      dtype       : '',
       /** @scratch /panels/terms/5
        * tstat:: Terms_stats facet stats field
        */
@@ -133,8 +133,7 @@ function (angular, app, _, $, kbn) {
       /** @scratch /panels/terms/5
        * valuefield:: Terms_stats facet value field
        */
-      // valuefield  : ''
-      valuefield  : []
+      valuefield  : ''
     };
 
     _.defaults($scope.panel,_d);
@@ -142,16 +141,10 @@ function (angular, app, _, $, kbn) {
     $scope.init = function () {
       $scope.hits = 0;
 
-    $scope.$on('refresh',function(){
+      $scope.$on('refresh',function(){
         $scope.get_data();
       });
-
-    $scope.getSize = function(size) {
-      var i = Math.floor( Math.log(size) / Math.log(1024) );
-      return ( size / Math.pow(1024, i) ).toFixed(2) * 1 + ' ' + ['B', 'kB', 'MB', 'GB', 'TB'][i];
-    };
-
-    $scope.get_data();
+      $scope.get_data();
 
     };
 
@@ -163,6 +156,8 @@ function (angular, app, _, $, kbn) {
 
       $scope.panelMeta.loading = true;
       var request,
+        terms_facet,
+        termstats_facet,
         results,
         boolQuery,
         queries;
@@ -170,105 +165,207 @@ function (angular, app, _, $, kbn) {
       $scope.field = _.contains(fields.list,$scope.panel.field+'.raw') ?
         $scope.panel.field+'.raw' : $scope.panel.field;
 
-      request = $scope.ejs.Request().indices(dashboard.indices);
+      request = $scope.ejs.Request();
 
-      $scope.panel.queries.ids = querySrv.idsByMode($scope.panel.queries);
-      queries = querySrv.getQueryObjs($scope.panel.queries.ids);
+      //$scope.panel.queries.ids = querySrv.idsByMode($scope.panel.queries);
+      //queries = querySrv.getQueryObjs($scope.panel.queries.ids);
 
-      // This could probably be changed to a BoolFilter
-      boolQuery = $scope.ejs.BoolQuery();
-      _.each(queries,function(q) {
-        boolQuery = boolQuery.should(querySrv.toEjsObj(q));
+      //// This could probably be changed to a BoolFilter
+      //boolQuery = $scope.ejs.BoolQuery();
+      //_.each(queries,function(q) {
+        //boolQuery = boolQuery.should(querySrv.toEjsObj(q));
+      //});
+
+      //// Terms mode
+      //if($scope.panel.tmode === 'terms') {
+        //terms_facet = $scope.ejs.TermsAggregation('terms')
+          //.field($scope.field)
+          //.size($scope.panel.size)
+          //.order($scope.panel.order)
+          //.exclude($scope.panel.exclude)
+          //.facetFilter($scope.ejs.QueryFilter(
+            //$scope.ejs.FilteredQuery(
+              //boolQuery,
+              //filterSrv.getBoolFilter(filterSrv.ids())
+            //)));
+        //if($scope.panel.fmode === 'script') {
+          //terms_facet.scriptField($scope.panel.script)
+        //}
+        //request = request.facet(terms_facet).size(0);
+      //}
+      //if($scope.panel.tmode === 'terms_stats') {
+        //termstats_facet = $scope.ejs.TermStatsFacet('terms')
+          //.valueField($scope.panel.valuefield)
+          //.keyField($scope.field)
+          //.size($scope.panel.size)
+          //.order($scope.panel.order)
+          //.facetFilter($scope.ejs.QueryFilter(
+            //$scope.ejs.FilteredQuery(
+              //boolQuery,
+              //filterSrv.getBoolFilter(filterSrv.ids())
+            //)));
+        //if($scope.panel.fmode === 'script') {
+          //termstats_facet.scriptField($scope.panel.script)
+        //}
+        //request = request.facet(termstats_facet).size(0);
+      //}
+
+		_.each(queries, function(q) {
+			var query = $scope.ejs.FilteredQuery(
+			  querySrv.toEjsObj(q),
+			  filterSrv.getBoolFilter(filterSrv.ids())
+			);
+
+			var aggr = $scope.ejs.TermsAggregation(q.id);
+
+			if($scope.panel.mode === 'terms') {
+			  aggr = aggr.field($scope.field);
+			  if($scope.panel.fmode === 'script') {
+				  terms_facet.scriptField($scope.panel.script)
+				}
+			} else if($scope.panel.mode === 'terms_stats') {
+			  aggr = aggr.field($scope.field).agg($scope.ejs.StatsAggregation(q.id).keyField($scope.field).size($scope.panel.size).order($scope.panel.order));
+			}
+			
+        request = request.agg(
+          $scope.ejs.GlobalAggregation(q.id).agg(
+            $scope.ejs.FilterAggregation(q.id).filter($scope.ejs.QueryFilter(query)).agg(
+              aggr.interval(_interval)
+            )
+          )
+        ).size($scope.panel.size);
       });
-
-      // Terms mode
-      if($scope.panel.tmode === 'terms') {
-        request = request
-          .facet($scope.ejs.TermsFacet('terms')
-          .field($scope.field)
-          .size($scope.panel.size)
-          .order($scope.panel.order)
-          .exclude($scope.panel.exclude)
-          .facetFilter($scope.ejs.QueryFilter(
-            $scope.ejs.FilteredQuery(
-              boolQuery,
-              filterSrv.getBoolFilter(filterSrv.ids())
-            )))).size(0);
-      }
-      if($scope.panel.tmode === 'terms_stats') {
-
-	
-	// Keep it simple for single values, convert to string
-	if ($scope.panel.valuefield instanceof Array && $scope.panel.valuefield.length === 1) { 
-		$scope.panel.valuefield.join();
-	}	
-
-	// Determine is query uses single or multi valuefield
-	if($scope.panel.valuefield instanceof Array) {
-		// console.log('Terms Value is array: ',$scope.panel.valuefield);
-		// Adjust size to number of parameters
-		if ($scope.panel.tsums) {
-		var gsize = (parseInt($scope.panel.size/$scope.panel.valuefield.length)/2 > 2) ? parseInt($scope.panel.size/$scope.panel.valuefield.length)/2 : $scope.panel.size/2;
-		} else {
-		var gsize = (parseInt($scope.panel.size/$scope.panel.valuefield.length) > 2) ? parseInt($scope.panel.size/$scope.panel.valuefield.length) : $scope.panel.size;
-		}
-		// QXIP: Dynamic Properties
-		_.each($scope.panel.valuefield,function(q) {
-			request = request
-	         	 .facet($scope.ejs.TermStatsFacet(q)
-	         	 .valueField(q)
-			 // QXIP: Test using scripts
-			 // .valueScript("doc[\""+q+"\"].value")
-		         //	.facet($scope.ejs.facetScript('script').valueScript("doc[\""+q+"\"].value"))
-	         	 .keyField($scope.field)
-	         	 .size(gsize)
-	         	 .order($scope.panel.order)
-			.facetFilter($scope.ejs.QueryFilter(
-	            	$scope.ejs.FilteredQuery(
-	            	  boolQuery,
-	            	  filterSrv.getBoolFilter(filterSrv.ids())
-	            	))))
-		});
-		request = request.size(0);
-
-	} else {
-		// console.log('Terms Value is single: ',$scope.panel.valuefield);
-		// KIBANA: Original Properties
-	        request = request
-	          .facet($scope.ejs.TermStatsFacet('terms')
-	          .valueField($scope.panel.valuefield)
-	          .keyField($scope.field)
-	          .size($scope.panel.size)
-	          .order($scope.panel.order)
-	          .facetFilter($scope.ejs.QueryFilter(
-	            $scope.ejs.FilteredQuery(
-	              boolQuery,
-	              filterSrv.getBoolFilter(filterSrv.ids())
-	            )))).size(0);
-	}
-
-      }
 
       // Populate the inspector panel
-      $scope.inspector = angular.toJson(JSON.parse(request.toString()),true);
-
-      results = request.doSearch();
+      $scope.populate_modal(request);
 
       // Populate scope when we have results
-      results.then(function(results) {
+      return results.then(function(results) {
         $scope.panelMeta.loading = false;
-        if($scope.panel.tmode === 'terms') {
-          $scope.hits = results.hits.total;
+        if(segment === 0) {
+          $scope.legend = [];
+          $scope.hits = 0;
+          data = [];
+          $scope.annotations = [];
+          query_id = $scope.query_id = new Date().getTime();
         }
 
-        $scope.results = results;
+        // Check for error and abort if found
+        if(!(_.isUndefined(results.error))) {
+          $scope.panel.error = $scope.parse_error(results.error);
+        }
+        // Make sure we're still on the same query/queries
+        else if($scope.query_id === query_id) {
 
-        $scope.$emit('render');
-      });
+          var i = 0,
+            time_series,
+            hits,
+            counters; // Stores the bucketed hit counts.
+
+  //var k = 0;
+  //scope.data = [];
+  //_.each(scope.results.facets.terms.terms, function(v) {
+	//var slice;
+	//if(scope.panel.tmode === 'terms') {
+	  //slice = { label : v.term, data : [[k,v.count]], actions: true};
+	//}
+	//if(scope.panel.tmode === 'terms_stats') {
+	  //slice = { label : v.term, data : [[k,v[scope.panel.tstat]]], actions: true};
+	//}
+	//scope.data.push(slice);
+	//k = k + 1;
+  //});
+
+  //scope.data.push({label:'Missing field',
+	//data:[[k,scope.results.facets.terms.missing]],meta:"missing",color:'#aaa',opacity:0});
+
+  //if(scope.panel.tmode === 'terms') {
+	//scope.data.push({label:'Other values',
+	  //data:[[k+1,scope.results.facets.terms.other]],meta:"other",color:'#444'});
+  //}
+          
+          _.each(queries, function(q) {
+            var query_results = results.aggregations[q.id][q.id][q.id];
+            // we need to initialize the data variable on the first run,
+            // and when we are working on the first segment of the data.
+            if(_.isUndefined(data[i]) || segment === 0) {
+              hits = 0;
+              counters = {};
+            } else {
+              time_series = data[i].time_series;
+              hits = data[i].hits;
+              counters = data[i].counters;
+            }
+
+            // push each entry into the time series, while incrementing counters
+            _.each(query_results.buckets, function(entry) {
+              var value;
+
+              hits += entry.doc_count; // The series level hits counter
+              $scope.hits += entry.doc_count; // Entire dataset level hits counter
+              counters[entry.key] = (counters[entry.key] || 0) + entry.doc_count;
+
+              if($scope.panel.mode === 'count') {
+                value = (time_series._data[entry.key] || 0) + entry.doc_count;
+              } else if ($scope.panel.mode === 'uniq') {
+                value = (time_series._data[entry.key] || 0) + entry[q.id].value;
+              } 
+            });
+
+            $scope.legend[i] = {query:q,hits:hits};
+
+            data[i] = {
+              info: q,
+              time_series: time_series,
+              hits: hits,
+              counters: counters
+            };
+
+            var monitorTitle = $scope.panel.queries.check[q.id] +' for query: '+ ( q.alias || q.query );
+            if ($scope.panel.queries.check[q.id] === 'threshold') {
+              monitor.check(data[i].counters, monitorTitle, $scope.panel.queries.threshold[i]);
+            } else if ($scope.panel.queries.check[q.id] === 'anomaly') {
+              monitor.check(data[i].counters, monitorTitle);
+            };
+
+            i++;
+          });
+
+        }
+        });
+
+
+
+
+
+
+
+
+      
+      
+      //// Populate the inspector panel
+      //$scope.inspector = request.toJSON();
+
+      //results = $scope.ejs.doSearch(dashboard.indices, request);
+
+      //// Populate scope when we have results
+      //results.then(function(results) {
+        //$scope.panelMeta.loading = false;
+        //if($scope.panel.tmode === 'terms') {
+          //$scope.hits = results.hits.total;
+        //}
+
+        //$scope.results = results;
+
+        //$scope.$emit('render');
+      //});
     };
 
     $scope.build_search = function(term,negate) {
-      if(_.isUndefined(term.meta)) {
+      if($scope.panel.fmode === 'script') {
+        filterSrv.set({type:'script',script:$scope.panel.script + ' == \"' + term.label + '\"',
+          mandate:(negate ? 'mustNot':'must')});
+      } else if(_.isUndefined(term.meta)) {
         filterSrv.set({type:'terms',field:$scope.field,value:term.label,
           mandate:(negate ? 'mustNot':'must')});
       } else if(term.meta === 'missing') {
@@ -277,6 +374,36 @@ function (angular, app, _, $, kbn) {
       } else {
         return;
       }
+    };
+
+    var build_multi_search = function(term) {
+      if($scope.panel.fmode === 'script') {
+        return({type:'script',script:$scope.panel.script + ' == \"' + term.label + '\"',
+          mandate:'either', alias: term.label});
+      } else if(_.isUndefined(term.meta)) {
+        return({type:'terms',field:$scope.field,value:term.label, mandate:'either'});
+      } else if(term.meta === 'missing') {
+        return({type:'exists',field:$scope.field, mandate:'either'});
+      } else {
+        return;
+      }
+    };
+
+    $scope.multi_search = function() {
+      _.each($scope.panel.multiterms, function(t) {
+        var f = build_multi_search(t);
+        filterSrv.set(f, undefined, true)
+      });
+      dashboard.refresh();
+    };
+    $scope.add_multi_search = function(term) {
+      $scope.panel.multiterms.push(term);
+    };
+    $scope.delete_multi_search = function(term) {
+      _.remove($scope.panel.multiterms, term);
+    };
+    $scope.check_multi_search = function(term) {
+      return _.indexOf($scope.panel.multiterms, term) >= 0;
     };
 
     $scope.set_refresh = function (state) {
@@ -318,72 +445,7 @@ function (angular, app, _, $, kbn) {
         });
 
         function build_results() {
-          var k = 0;
-	  var g = 0;
-          scope.data = [];
-	  _.each(scope.results.facets, function(f) {
-		_.each(f.terms, function(v) {
-	            var slice;
-	            if(scope.panel.tmode === 'terms') {
-		       if (scope.panel.dtype === 'bytes') {
-	                 slice = { label : v.term, data : [[k,v.count,scope.getSize(v.count)]], actions: true};
-		       } else {
-	                 slice = { label : v.term, data : [[k,v.count]], actions: true};
-		       }
-	            }
-	            if(scope.panel.tmode === 'terms_stats') {
-			    if (scope.panel.tsums) {
-			       if (scope.panel.dtype === 'bytes') {
-		                 slice = { label : v.term, data : [[k,v[scope.panel.tstat],scope.getSize(v[scope.panel.tstat])]], actions: true};
-			       } else {
-		                 slice = { label : v.term, data : [[k,v[scope.panel.tstat]]], actions: true};
-			       }
-			    } else {
-			       if (scope.panel.dtype === 'bytes') {
-		                 slice = { label : v.term+'/'+scope.panel.valuefield[g], data : [[k,v[scope.panel.tstat],scope.getSize(v[scope.panel.tstat])]], actions: true};
-			       } else {
-		                 slice = { label : v.term+'/'+scope.panel.valuefield[g], data : [[k,v[scope.panel.tstat]]], actions: true};
-			       }
-			    }
-	            }
 
-		    if (scope.panel.tsums) {
-		    	// sum twins
-		    	var exists = -1;
-		    	  if (scope.data) {
-				      exists = scope.data.map(function(e) { return e.label; }).indexOf(v.term);
-			      }
-		
-			    if (exists >= 0) {
-				// sum to existing pair
-				scope.data[exists].data[0][1] += slice.data[0][1]; 		
-				scope.data[exists].data[0][2] = scope.getSize(scope.data[exists].data[0][1]); 		
-			    } else {
-				// insert new value
-		        	scope.data.push(slice);
-			      }
-		    } else { 
-				scope.data.push(slice); 
-		    }
-
-
-	            k = k + 1;
-	          });
-
-	     // next facet group
-	     g = g + 1;
-
-	      if (scope.panel.missing && f.missing > 0) {
-     	  	   scope.data.push({label:'Missing field',
-     	  	     data:[[k,f.missing]],meta:"missing",color:'#aaa',opacity:0});
-	      }
-          });
-
-
-          if(scope.panel.tmode === 'terms') {
-            scope.data.push({label:'Other values',
-              data:[[k+1,scope.results.facets.terms.other]],meta:"other",color:'#444'});
-          }
         }
 
         // Function for rendering panel
@@ -492,7 +554,8 @@ function (angular, app, _, $, kbn) {
             $tooltip
               .html(
                 kbn.query_color_dot(item.series.color, 20) + ' ' +
-                item.series.label + " (" + value.toFixed(0)+")"
+                item.series.label + " (" + value.toFixed(0) +
+                (scope.panel.chart === 'pie' ? (", " + Math.round(item.datapoint[0]) + "%") : "") + ")"
               )
               .place_tt(pos.pageX, pos.pageY);
           } else {

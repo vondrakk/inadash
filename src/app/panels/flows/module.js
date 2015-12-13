@@ -126,18 +126,17 @@ define([
       var request,
         boolQuery,
         queries;
+	var ejs = $scope.ejs;
 
       $scope.panel.queries.ids = querySrv.idsByMode($scope.panel.queries);
-      request = $scope.ejs.Request().indices(dashboard.indices);
-      queries = querySrv.getQueryObjs($scope.panel.queries.ids);
-
-      var ejs = $scope.ejs;
-
+	queries = querySrv.getQueryObjs($scope.panel.queries.ids);
       boolQuery = $scope.ejs.BoolQuery();
       _.each(queries,function(q) {
-        boolQuery = boolQuery.should(querySrv.toEjsObj(q) );
+        boolQuery = boolQuery.should(querySrv.toEjsObj(q));
       });
 
+
+      request = $scope.ejs.Request();
       request = request
         .facet($scope.ejs.TermsFacet('src_terms')
           .field($scope.panel.src_field)
@@ -146,7 +145,7 @@ define([
           .facetFilter($scope.ejs.QueryFilter(
             $scope.ejs.FilteredQuery(
               boolQuery,
-              filterSrv.getBoolFilter(filterSrv.ids()).must($scope.ejs.ExistsFilter($scope.panel.src_field))
+              filterSrv.getBoolFilter(filterSrv.ids)
             )
           ))
         )
@@ -157,7 +156,7 @@ define([
           .facetFilter($scope.ejs.QueryFilter(
             $scope.ejs.FilteredQuery(
               boolQuery,
-              filterSrv.getBoolFilter(filterSrv.ids()).must($scope.ejs.ExistsFilter($scope.panel.dst_field))
+              filterSrv.getBoolFilter(filterSrv.ids)
             )
           ))
         )
@@ -167,7 +166,7 @@ define([
 
       $scope.data = {};
 
-      request.doSearch().then(function(results) {
+      $scope.ejs.doSearch(dashboard.indices, request).then(function(results) {
 
 	// QXIP: Pre-Generate sankey nodes
         $scope.data.nodes = [];
@@ -191,7 +190,7 @@ define([
         });
 
         // build a new request to compute the connections between the nodes
-        request = $scope.ejs.Request().indices(dashboard.indices);
+        request = $scope.ejs.Request();
         _.each($scope.data.src_terms, function(src) {
           _.each($scope.data.dst_terms, function(dst) {
 
@@ -284,7 +283,7 @@ define([
 
 	}
 
-        request.doSearch().then(function (results) {
+        $scope.ejs.doSearch(dashboard.indices, request).then(function(results) {
           $scope.data.connections = {};
           _.each(results.facets, function(v, name) {
             $scope.data.connections[name] = v.count;
@@ -310,7 +309,7 @@ define([
     };
 
     $scope.populate_modal = function(request) {
-      $scope.inspector = angular.toJson(JSON.parse(request.toString()),true);
+      $scope.inspector = request.toJSON();
     };
 
 

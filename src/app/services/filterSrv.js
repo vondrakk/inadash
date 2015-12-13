@@ -19,7 +19,7 @@ define([
     };
 
     // For convenience
-    var ejs = ejsResource(config.elasticsearch);
+    var ejs = ejsResource(config);
 
     // Save a reference to this
     var self = this;
@@ -186,6 +186,8 @@ define([
         return ejs.ExistsFilter(filter.field);
       case 'missing':
         return ejs.MissingFilter(filter.field);
+      case 'script':
+        return ejs.ScriptFilter(filter.script);
       default:
         return false;
       }

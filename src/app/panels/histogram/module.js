@@ -26,6 +26,7 @@ define([
   'jquery.flot.events',
   'jquery.flot.selection',
   'jquery.flot.time',
+  'jquery.flot.threshold',
   'jquery.flot.byte',
   'jquery.flot.stack',
   'jquery.flot.stackpercent'
@@ -37,7 +38,7 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
   var module = angular.module('kibana.panels.histogram', []);
   app.useModule(module);
 
-  module.controller('histogram', function($scope, querySrv, dashboard, filterSrv) {
+  module.controller('histogram', function($scope, querySrv, dashboard, filterSrv, monitor) {
     $scope.panelMeta = {
       modals : [
         {
@@ -59,7 +60,7 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
       ],
       status  : "Stable",
       description : "A bucketed time series chart of the current query or queries. Uses the "+
-        "Elasticsearch date_histogram facet. If using time stamped indices this panel will query"+
+        "Elasticsearch date_histogram aggregation. If using time stamped indices this panel will query"+
         " them sequentially to attempt to apply the lighest possible load to your Elasticsearch cluster"
     };
 
@@ -111,10 +112,14 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
        * ==== Queries
        * queries object:: This object describes the queries to use on this panel.
        * queries.mode::: Of the queries available, which to use. Options: +all, pinned, unpinned, selected+
+       * queries.check::: Of the queries check mode. Options: +none, threshold, anomaly+
+       * queries.threshold::: In +threshold+ check mode, what's the check threshold.
        * queries.ids::: In +selected+ mode, which query ids are selected.
        */
       queries     : {
         mode        : 'all',
+        check       : [],
+        threshold   : {},
         ids         : []
       },
       /** @scratch /panels/histogram/3
@@ -182,6 +187,10 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
        */
       stack         : true,
       /** @scratch /panels/histogram/3
+       * threshold:: Set threshold on chart
+       */
+      threshold     : false,
+      /** @scratch /panels/histogram/3
        * spyable:: Show inspect icon
        */
       spyable       : true,
@@ -243,8 +252,7 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
     _.defaults($scope.panel.tooltip,_d.tooltip);
     _.defaults($scope.panel.annotate,_d.annotate);
     _.defaults($scope.panel.grid,_d.grid);
-
-
+    _.defaults($scope.panel.queries,_d.queries);
 
     $scope.init = function() {
       // Hide view options by default
@@ -333,36 +341,40 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
       }
 
       $scope.panelMeta.loading = true;
-      request = $scope.ejs.Request().indices(dashboard.indices[segment]);
-      if (!$scope.panel.annotate.enable) {
-        request.searchType("count");
-      }
+      request = $scope.ejs.Request();
 
       $scope.panel.queries.ids = querySrv.idsByMode($scope.panel.queries);
 
       queries = querySrv.getQueryObjs($scope.panel.queries.ids);
 
       // Build the query
+// Build the query
       _.each(queries, function(q) {
         var query = $scope.ejs.FilteredQuery(
           querySrv.toEjsObj(q),
           filterSrv.getBoolFilter(filterSrv.ids())
         );
 
-        var facet = $scope.ejs.DateHistogramFacet(q.id);
+        var aggr = $scope.ejs.DateHistogramAggregation(q.id);
 
         if($scope.panel.mode === 'count') {
-          facet = facet.field($scope.panel.time_field).global(true);
+          aggr = aggr.field($scope.panel.time_field);
+        } else if($scope.panel.mode === 'uniq') {
+          aggr = aggr.field($scope.panel.time_field).agg($scope.ejs.CardinalityAggregation(q.id).field($scope.panel.value_field));
         } else {
           if(_.isNull($scope.panel.value_field)) {
             $scope.panel.error = "In " + $scope.panel.mode + " mode a field must be specified";
             return;
           }
-          facet = facet.keyField($scope.panel.time_field).valueField($scope.panel.value_field).global(true);
+          aggr = aggr.field($scope.panel.time_field).agg($scope.ejs.StatsAggregation(q.id).field($scope.panel.value_field));
         }
-        facet = facet.interval(_interval).facetFilter($scope.ejs.QueryFilter(query));
-        request = request.facet(facet)
-          .size($scope.panel.annotate.enable ? $scope.panel.annotate.size : 0);
+        request = request.agg(
+          $scope.ejs.GlobalAggregation(q.id).agg(
+            $scope.ejs.FilterAggregation(q.id).filter($scope.ejs.QueryFilter(query)).agg(
+              aggr.interval(_interval)
+            )
+          )
+        ).size($scope.panel.annotate.enable ? $scope.panel.annotate.size : 0);
       });
 
       if($scope.panel.annotate.enable) {
@@ -384,7 +396,11 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
       $scope.populate_modal(request);
 
       // Then run it
-      results = request.doSearch();
+      if (!$scope.panel.annotate.enable) {
+        results = $scope.ejs.doCount(dashboard.indices[segment], request);
+      } else {
+        results = $scope.ejs.doSearch(dashboard.indices[segment], request);
+      }
 
       // Populate scope when we have results
       return results.then(function(results) {
@@ -410,7 +426,7 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
             counters; // Stores the bucketed hit counts.
 
           _.each(queries, function(q) {
-            var query_results = results.facets[q.id];
+            var query_results = results.aggregations[q.id][q.id][q.id];
             // we need to initialize the data variable on the first run,
             // and when we are working on the first segment of the data.
             if(_.isUndefined(data[i]) || segment === 0) {
@@ -430,38 +446,40 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
             }
 
             // push each entry into the time series, while incrementing counters
-            _.each(query_results.entries, function(entry) {
+            _.each(query_results.buckets, function(entry) {
               var value;
 
-              hits += entry.count; // The series level hits counter
-              $scope.hits += entry.count; // Entire dataset level hits counter
-              counters[entry.time] = (counters[entry.time] || 0) + entry.count;
+              hits += entry.doc_count; // The series level hits counter
+              $scope.hits += entry.doc_count; // Entire dataset level hits counter
+              counters[entry.key] = (counters[entry.key] || 0) + entry.doc_count;
 
               if($scope.panel.mode === 'count') {
-                value = (time_series._data[entry.time] || 0) + entry.count;
+                value = (time_series._data[entry.key] || 0) + entry.doc_count;
+              } else if ($scope.panel.mode === 'uniq') {
+                value = (time_series._data[entry.key] || 0) + entry[q.id].value;
               } else if ($scope.panel.mode === 'mean') {
                 // Compute the ongoing mean by
                 // multiplying the existing mean by the existing hits
                 // plus the new mean multiplied by the new hits
                 // divided by the total hits
-                value = (((time_series._data[entry.time] || 0)*(counters[entry.time]-entry.count)) +
-                  entry.mean*entry.count)/(counters[entry.time]);
+                value = (((time_series._data[entry.key] || 0)*(counters[entry.key]-entry.doc_count)) +
+                  entry[q.id].avg*entry.doc_count)/(counters[entry.key]);
               } else if ($scope.panel.mode === 'min'){
-                if(_.isUndefined(time_series._data[entry.time])) {
-                  value = entry.min;
+                if(_.isUndefined(time_series._data[entry.key])) {
+                  value = entry[q.id].min;
                 } else {
-                  value = time_series._data[entry.time] < entry.min ? time_series._data[entry.time] : entry.min;
+                  value = time_series._data[entry.key] < entry[q.id].min ? time_series._data[entry.key] : entry[q.id].min;
                 }
               } else if ($scope.panel.mode === 'max'){
-                if(_.isUndefined(time_series._data[entry.time])) {
-                  value = entry.max;
+                if(_.isUndefined(time_series._data[entry.key])) {
+                  value = entry[q.id].max;
                 } else {
-                  value = time_series._data[entry.time] > entry.max ? time_series._data[entry.time] : entry.max;
+                  value = time_series._data[entry.key] > entry[q.id].max ? time_series._data[entry.key] : entry[q.id].max;
                 }
               } else if ($scope.panel.mode === 'total'){
-                value = (time_series._data[entry.time] || 0) + entry.total;
+                value = (time_series._data[entry.key] || 0) + entry[q.id].sum;
               }
-              time_series.addValue(entry.time, value);
+              time_series.addValue(entry.key, value);
             });
 
             $scope.legend[i] = {query:q,hits:hits};
@@ -471,6 +489,13 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
               time_series: time_series,
               hits: hits,
               counters: counters
+            };
+
+            var monitorTitle = $scope.panel.queries.check[q.id] +' for query: '+ ( q.alias || q.query );
+            if ($scope.panel.queries.check[q.id] === 'threshold') {
+              monitor.check(data[i].counters, monitorTitle, $scope.panel.queries.threshold[i]);
+            } else if ($scope.panel.queries.check[q.id] === 'anomaly') {
+              monitor.check(data[i].counters, monitorTitle);
             };
 
             i++;
@@ -541,7 +566,7 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
 
     // I really don't like this function, too much dom manip. Break out into directive?
     $scope.populate_modal = function(request) {
-      $scope.inspector = angular.toJson(JSON.parse(request.toString()),true);
+      $scope.inspector = request.toJSON();
     };
 
     $scope.set_refresh = function (state) {
@@ -630,6 +655,7 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
               series: {
                 stackpercent: scope.panel.stack ? scope.panel.percentage : false,
                 stack: scope.panel.percentage ? null : stack,
+                threshold: null,
                 lines:  {
                   show: scope.panel.lines,
                   // Silly, but fixes bug in stacked percentages
@@ -675,6 +701,12 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
               }
             };
 
+            if (scope.panel.threshold) {
+              options.series.threshold = {
+                above: scope.panel.above,
+                color: "#FFF"
+              };
+            }
             if (scope.panel.y_format === 'bytes') {
               options.yaxis.mode = "byte";
               options.yaxis.tickFormatter = function (val, axis) {

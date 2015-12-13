@@ -18,7 +18,9 @@ define([
   'lodash',
   'kbn',
   'moment',
-  'jsonpath'
+  'jsonpath',
+  'filesaver',
+  'blob'
 ],
 function (angular, app, _, kbn, moment) {
   'use strict';
@@ -30,6 +32,12 @@ function (angular, app, _, kbn, moment) {
     fields, querySrv, dashboard, filterSrv) {
     $scope.panelMeta = {
       modals : [
+        {
+          description: "Export",
+          icon: "icon-download-alt",
+          partial: "app/panels/table/export.html",
+          show: $scope.panel.exportable
+        },
         {
           description: "Inspect",
           icon: "icon-info-sign",
@@ -126,6 +134,10 @@ function (angular, app, _, kbn, moment) {
        */
       spyable : true,
       /** @scratch /panels/table/5
+       * exportable:: Set to false to disable the export icon
+       */
+      exportable : true,
+      /** @scratch /panels/table/5
        *
        * ==== Queries
        * queries object:: This object describes the queries to use on this panel.
@@ -157,6 +169,39 @@ function (angular, app, _, kbn, moment) {
 
     // Create a percent function for the view
     $scope.percent = kbn.to_percent;
+
+    $scope.csv = {
+      showOptions: false,
+      separator: ',',
+      quoteValues: true,
+      filename: 'table.csv'
+    };
+    $scope.exportAsCsv = function() {
+      if (!$scope.data) return;
+
+      var text = '';
+      var nonAlphaNumRE = /[^a-zA-Z0-9]/;
+      var allDoubleQuoteRE = /"/g;
+      var escape = function (val) {
+        val = String(val);
+        if ($scope.csv.quoteValues && nonAlphaNumRE.test(val)) {
+          val = '"' + val.replace(allDoubleQuoteRE, '""') + '"';
+        }
+        return val;
+      };
+
+      var rows = _.map($scope.data, function(e) {
+        var exportFields = [];
+        _.each($scope.panel.fields, function(field) {
+          exportFields.push(escape(e._source[field]));
+        });
+        return exportFields.join($scope.csv.separator) + '\r\n';
+      });
+
+      var blob = new Blob(rows, { type: 'text/plain' });
+
+      window.saveAs(blob, $scope.csv.filename);
+    };
 
     $scope.closeFacet = function() {
       if($scope.modalField) {
@@ -216,12 +261,7 @@ function (angular, app, _, kbn, moment) {
         count: _.countBy(docs,function(doc){return _.contains(_.keys(doc),field);})['true']
       };
 
-
-      var nodeInfo = $scope.ejs.client.get('/' + dashboard.indices + '/_mapping/field/' + field,
-        undefined, undefined, function(data, status) {
-        console.log(status);
-        return;
-      });
+      var nodeInfo = $scope.ejs.getFieldMapping(dashboard.indices, field);
 
       return nodeInfo.then(function(p) {
         var types = _.uniq(jsonPath(p, '*.*.*.*.mapping.*.type'));
@@ -325,7 +365,7 @@ function (angular, app, _, kbn, moment) {
       _segment = _.isUndefined(segment) ? 0 : segment;
       $scope.segment = _segment;
 
-      request = $scope.ejs.Request().indices(dashboard.indices[_segment]);
+      request = $scope.ejs.Request();
 
       $scope.panel.queries.ids = querySrv.idsByMode($scope.panel.queries);
 
@@ -346,14 +386,12 @@ function (angular, app, _, kbn, moment) {
           .fragmentSize(2147483647) // Max size of a 32bit unsigned int
           .preTags('@start-highlight@')
           .postTags('@end-highlight@')
-        )
-        .size($scope.panel.size*$scope.panel.pages)
-        .sort(sort);
+        ).sort(sort);
 
       $scope.populate_modal(request);
 
       // Populate scope when we have results
-      request.doSearch().then(function(results) {
+      $scope.ejs.doSearch(dashboard.indices[_segment], request, $scope.panel.size*$scope.panel.pages).then(function(results) {
         $scope.panelMeta.loading = false;
 
         if(_segment === 0) {
@@ -428,7 +466,7 @@ function (angular, app, _, kbn, moment) {
     };
 
     $scope.populate_modal = function(request) {
-      $scope.inspector = angular.toJson(JSON.parse(request.toString()),true);
+      $scope.inspector = request.toJSON();
     };
 
     $scope.without_kibana = function (row) {

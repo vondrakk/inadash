@@ -112,7 +112,7 @@ define([
         boolQuery,
         queries;
 
-      request = $scope.ejs.Request().indices(dashboard.indices);
+      request = $scope.ejs.Request();
 
       $scope.panel.queries.ids = querySrv.idsByMode($scope.panel.queries);
       queries = querySrv.getQueryObjs($scope.panel.queries.ids);
@@ -186,11 +186,9 @@ define([
       }
 
       // Populate the inspector panel
-      $scope.inspector = angular.toJson(JSON.parse(request.toString()),true);
+		$scope.inspector = request.toJSON();
 
-      results = request.doSearch();
-
-	      results.then(function(results) {
+      $scope.ejs.doSearch(dashboard.indices, request).then(function(results) {
 	        $scope.panelMeta.loading = false;
 	        var value = results.facets.stats[$scope.panel.mode];
 	

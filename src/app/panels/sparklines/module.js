@@ -163,7 +163,7 @@ function (angular, app, $, _, kbn, moment, timeSeries) {
       _interval = $scope.get_interval(_range);
 
       $scope.panelMeta.loading = true;
-      request = $scope.ejs.Request().indices(dashboard.indices[segment]);
+      request = $scope.ejs.Request();
 
       $scope.panel.queries.ids = querySrv.idsByMode($scope.panel.queries);
 
@@ -176,27 +176,31 @@ function (angular, app, $, _, kbn, moment, timeSeries) {
           filterSrv.getBoolFilter(filterSrv.ids())
         );
 
-        var facet = $scope.ejs.DateHistogramFacet(q.id);
+        var aggr = $scope.ejs.DateHistogramAggregation(q.id);
 
         if($scope.panel.mode === 'count') {
-          facet = facet.field($scope.panel.time_field).global(true);
+            aggr = aggr.field($scope.panel.time_field);
         } else {
           if(_.isNull($scope.panel.value_field)) {
             $scope.panel.error = "In " + $scope.panel.mode + " mode a field must be specified";
             return;
           }
-          facet = facet.keyField($scope.panel.time_field).valueField($scope.panel.value_field);
+          aggr = aggr.field($scope.panel.time_field).agg($scope.ejs.StatsAggregation(q.id).field($scope.panel.value_field));
         }
-        facet = facet.interval(_interval).facetFilter($scope.ejs.QueryFilter(query));
-        request = request.facet(facet)
-          .size(0);
+        request = request.agg(
+                $scope.ejs.GlobalAggregation(q.id).agg(
+                    $scope.ejs.FilterAggregation(q.id).filter($scope.ejs.QueryFilter(query)).agg(
+                        aggr.interval(_interval)
+                        )
+                    )
+                ).size(0);
       });
 
       // Populate the inspector panel
       $scope.populate_modal(request);
 
       // Then run it
-      results = request.doSearch();
+      results = $scope.ejs.doSearch(dashboard.indices[segment], request);
 
       // Populate scope when we have results
       results.then(function(results) {
@@ -222,7 +226,7 @@ function (angular, app, $, _, kbn, moment, timeSeries) {
             hits;
 
           _.each(queries, function(q) {
-            var query_results = results.facets[q.id];
+            var query_results = results.aggregations[q.id][q.id][q.id];
             // we need to initialize the data variable on the first run,
             // and when we are working on the first segment of the data.
             if(_.isUndefined($scope.data[i]) || segment === 0) {
@@ -240,10 +244,10 @@ function (angular, app, $, _, kbn, moment, timeSeries) {
             }
 
             // push each entry into the time series, while incrementing counters
-            _.each(query_results.entries, function(entry) {
-              time_series.addValue(entry.time, entry[$scope.panel.mode]);
-              hits += entry.count; // The series level hits counter
-              $scope.hits += entry.count; // Entire dataset level hits counter
+            _.each(query_results.buckets, function(entry) {
+              time_series.addValue(entry.key, entry.doc_count);
+              hits += entry.doc_count; // The series level hits counter
+              $scope.hits += entry.doc_count; // Entire dataset level hits counter
             });
             $scope.data[i] = {
               info: q,
@@ -265,7 +269,7 @@ function (angular, app, $, _, kbn, moment, timeSeries) {
 
     // I really don't like this function, too much dom manip. Break out into directive?
     $scope.populate_modal = function(request) {
-      $scope.inspector = angular.toJson(JSON.parse(request.toString()),true);
+      $scope.inspector = request.toJSON();
     };
 
     $scope.set_refresh = function (state) {
@@ -273,9 +277,9 @@ function (angular, app, $, _, kbn, moment, timeSeries) {
     };
 
     $scope.close_edit = function() {
-      // if($scope.refresh) {
+      if($scope.refresh) {
         $scope.get_data();
-      // }
+      }
       $scope.refresh =  false;
     };
 
@@ -296,12 +300,6 @@ function (angular, app, $, _, kbn, moment, timeSeries) {
           render_panel();
         });
 
- 	// Or if the window is resized
-        angular.element(window).bind('resize', function(){
-          render_panel();
-        });
-
-
         var derivative = function(series) {
           return _.map(series, function(p,i) {
             var _v;
@@ -317,9 +315,7 @@ function (angular, app, $, _, kbn, moment, timeSeries) {
         // Function for rendering panel
         function render_panel() {
           // IE doesn't work without this
-          // elem.css({height:"90px",width:"200px"});
-          elem.css({minHeight:"100px",height:"90%",minWidth:"200px", width:"90%"});
-	  // elem.css({height:scope.panel.height||scope.row.height,width:scope.panel.width||scope.row.width});
+          elem.css({height:"30px",width:"100px"});
 
           // Populate element
           //try {

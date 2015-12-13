@@ -71,6 +71,10 @@ function (angular, app, _, L, localRequire) {
        */
       field   : null,
       /** @scratch /panels/bettermap/5
+       * provider:: The map provider of leaflet.js
+       */
+      provider: 'MapQuestOpen',
+      /** @scratch /panels/bettermap/5
        * size:: The number of documents to use when drawing the map
        */
       size    : 1000,
@@ -142,7 +146,7 @@ function (angular, app, _, L, localRequire) {
           boolQuery = boolQuery.should(querySrv.toEjsObj(q));
         });
 
-        var request = $scope.ejs.Request().indices(dashboard.indices[_segment])
+        var request = $scope.ejs.Request()
           .query($scope.ejs.FilteredQuery(
             boolQuery,
             filterSrv.getBoolFilter(filterSrv.ids()).must($scope.ejs.ExistsFilter($scope.panel.field))
@@ -156,7 +160,7 @@ function (angular, app, _, L, localRequire) {
 
         $scope.populate_modal(request);
 
-        var results = request.doSearch();
+        var results = $scope.ejs.doSearch(dashboard.indices[_segment], request);
 
         // Populate scope when we have results
         results.then(function(results) {
@@ -201,7 +205,7 @@ function (angular, app, _, L, localRequire) {
     };
 
     $scope.populate_modal = function(request) {
-      $scope.inspector = angular.toJson(JSON.parse(request.toString()),true);
+      $scope.inspector = request.toJSON();
     };
 
   });
@@ -229,7 +233,7 @@ function (angular, app, _, L, localRequire) {
         function render_panel() {
           elem.css({height:scope.panel.height||scope.row.height});
 
-          scope.require(['./leaflet/plugins'], function () {
+          scope.require(['./leaflet/plugins', './leaflet/providers'], function () {
             scope.panelMeta.loading = false;
             L.Icon.Default.imagePath = 'app/panels/bettermap/leaflet/images';
             if(_.isUndefined(map)) {
@@ -239,18 +243,10 @@ function (angular, app, _, L, localRequire) {
                 zoom: 10
               });
 
-              // This could be made configurable?
-	      var MB_URL = 'http://{s}.tiles.mapbox.com/v3/{id}/{z}/{x}/{y}.png';
-		var MB_ID = 'examples.map-20v6611k';
-	      var OSM_URL = 'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-
-              // L.tileLayer('http://otile1.mqcdn.com/tiles/1.0.0/map/{z}/{x}/{y}.jpg', {
-              L.tileLayer(OSM_URL, {
-                attribution: 'Data, imagery and map information provided by MapQuest, '+
-                  'OpenStreetMap <http://www.openstreetmap.org/copyright> and contributors, ODbL',
+              // This could be made more configurable?
+              L.tileLayer.provider(scope.panel.provider, {
                 maxZoom: 18,
-                minZoom: 2,
-		id: MB_ID
+                minZoom: 2
               }).addTo(map);
               layerGroup = new L.MarkerClusterGroup({maxClusterRadius:30});
             } else {

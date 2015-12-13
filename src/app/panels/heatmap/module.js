@@ -108,7 +108,7 @@ define([
     };
 
     $scope.populate_modal = function(request) {
-      $scope.inspector = angular.toJson(JSON.parse(request.toString()),true);
+		$scope.inspector = request.toJSON();
     };
 
     $scope.get_data = function() {
@@ -136,7 +136,7 @@ define([
         boolQuery = boolQuery.should(querySrv.toEjsObj(q));
       });
 
-      request = $scope.ejs.Request().indices(dashboard.indices);
+      request = $scope.ejs.Request();
       request = request
         .facet($scope.ejs.StatisticalFacet('responsetime_stats')
           .field($scope.panel.responsetime_field)
@@ -151,7 +151,7 @@ define([
 
       $scope.data = {};
 
-      request.doSearch().then(function(results) {
+      $scope.ejs.doSearch(dashboard.indices, request).then(function(results) {
         $scope.data.count = results.facets.responsetime_stats.count;
         $scope.data.max = results.facets.responsetime_stats.max;
 
@@ -171,7 +171,7 @@ define([
           console.log("Buckets: ", $scope.data.buckets);
 
           // Build request
-          request = $scope.ejs.Request().indices(dashboard.indices);
+          request = $scope.ejs.Request();
 
           _.each($scope.data.buckets, function(bucket) {
 
@@ -198,11 +198,7 @@ define([
           // Populate the inspector panel
           $scope.populate_modal(request);
 
-          // Then run it
-          results = request.doSearch();
-
-          // Populate scope when we have results
-          results.then(function(results) {
+          $scope.ejs.doSearch(dashboard.indices, request).then(function(results) {
 
             $scope.panelMeta.loading = false;
 

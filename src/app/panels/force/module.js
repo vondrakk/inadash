@@ -123,7 +123,7 @@ define([
       });
 
 
-      request = $scope.ejs.Request().indices(dashboard.indices);
+      request = $scope.ejs.Request();
       request = request
         .facet($scope.ejs.TermsFacet('src_terms')
           .field($scope.panel.src_field)
@@ -131,7 +131,7 @@ define([
           .facetFilter($scope.ejs.QueryFilter(
             $scope.ejs.FilteredQuery(
               boolQuery,
-              filterSrv.getBoolFilter(filterSrv.ids()).must($scope.ejs.ExistsFilter($scope.panel.src_field))
+              filterSrv.getBoolFilter(filterSrv.ids)
             )
           ))
         )
@@ -141,7 +141,7 @@ define([
           .facetFilter($scope.ejs.QueryFilter(
             $scope.ejs.FilteredQuery(
               boolQuery,
-              filterSrv.getBoolFilter(filterSrv.ids()).must($scope.ejs.ExistsFilter($scope.panel.dst_field))
+              filterSrv.getBoolFilter(filterSrv.ids)
             )
           ))
         )
@@ -151,7 +151,7 @@ define([
 
       $scope.data = {};
 
-      request.doSearch().then(function(results) {
+      $scope.ejs.doSearch(dashboard.indices, request).then(function(results) {
 
         $scope.data.src_terms = [];
         _.each(results.facets.src_terms.terms, function(v) {
@@ -166,7 +166,7 @@ define([
         // console.log("Dst terms", $scope.data.dst_terms);
 
         // build a new request to compute the connections between the nodes
-        request = $scope.ejs.Request().indices(dashboard.indices);
+        request = $scope.ejs.Request();
         _.each($scope.data.src_terms, function(src) {
           _.each($scope.data.dst_terms, function(dst) {
 
@@ -176,12 +176,18 @@ define([
                 ejs.TermFilter($scope.panel.src_field, src),
                 ejs.TermFilter($scope.panel.dst_field, dst)
               ]))
+              .facetFilter($scope.ejs.QueryFilter(
+                $scope.ejs.FilteredQuery(
+                  boolQuery,
+                  filterSrv.getBoolFilter(filterSrv.ids)
+                )
+              ))
               ).size(0);
 
           });
         });
 
-        request.doSearch().then(function (results) {
+        $scope.ejs.doSearch(dashboard.indices, request).then(function(results) {
           $scope.data.connections = {};
           _.each(results.facets, function(v, name) {
             $scope.data.connections[name] = v.count;
@@ -199,7 +205,7 @@ define([
     };
 
     $scope.populate_modal = function(request) {
-      $scope.inspector = angular.toJson(JSON.parse(request.toString()),true);
+      $scope.inspector = request.toJSON();
     };
 
     $scope.pickCol = function(str) {
