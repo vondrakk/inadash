@@ -32,7 +32,6 @@ function (angular, app, _, kbn) {
         {
           description: "Inspect",
           icon: "icon-info-sign",
-          partial: "app/partials/inspector.html",
           show: $scope.panel.spyable
         }
       ],
@@ -158,9 +157,6 @@ function (angular, app, _, kbn) {
           ).size(0);
       });
 
-
-      // Populate the inspector panel
-      $scope.inspector = request.toJSON();
 
       // If we're on the first segment we need to get our indices
       if (_segment === 0) {

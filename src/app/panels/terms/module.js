@@ -30,7 +30,6 @@ function (angular, app, _, $, kbn) {
         {
           description: "Inspect",
           icon: "icon-info-sign",
-          partial: "app/partials/inspector.html",
           show: $scope.panel.spyable
         }
       ],
@@ -236,9 +235,6 @@ function (angular, app, _, $, kbn) {
         ).size($scope.panel.size);
       });
 
-      // Populate the inspector panel
-      $scope.populate_modal(request);
-
       // Populate scope when we have results
       return results.then(function(results) {
         $scope.panelMeta.loading = false;
@@ -343,9 +339,6 @@ function (angular, app, _, $, kbn) {
 
       
       
-      //// Populate the inspector panel
-      //$scope.inspector = request.toJSON();
-
       //results = $scope.ejs.doSearch(dashboard.indices, request);
 
       //// Populate scope when we have results

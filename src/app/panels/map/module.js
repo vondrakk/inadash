@@ -35,7 +35,6 @@ function (angular, app, _, $) {
         {
           description: "Inspect",
           icon: "icon-info-sign",
-          partial: "app/partials/inspector.html",
           show: $scope.panel.spyable
         }
       ],
@@ -154,8 +153,6 @@ function (angular, app, _, $) {
       }
 
 
-      $scope.populate_modal(request);
-
       var results = $scope.ejs.doSearch(dashboard.indices, request);
 
       // Populate scope when we have results
@@ -177,11 +174,6 @@ function (angular, app, _, $) {
         });
         $scope.$emit('render');
       });
-    };
-
-    // I really don't like this function, too much dom manip. Break out into directive?
-    $scope.populate_modal = function(request) {
-      $scope.inspector = request.toJSON();
     };
 
     $scope.build_search = function(field, value) {

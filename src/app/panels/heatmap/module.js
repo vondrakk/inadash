@@ -34,7 +34,6 @@ define([
         {
           description: "Inspect",
           icon: "icon-info-sign",
-          partial: "app/partials/inspector.html",
           show: $scope.panel.spyable
         }
       ],
@@ -105,10 +104,6 @@ define([
       }
       $scope.panel.interval = interval || '10m';
       return $scope.panel.interval;
-    };
-
-    $scope.populate_modal = function(request) {
-		$scope.inspector = request.toJSON();
     };
 
     $scope.get_data = function() {
@@ -194,9 +189,6 @@ define([
           });
 
           console.log('Request: ', request);
-
-          // Populate the inspector panel
-          $scope.populate_modal(request);
 
           $scope.ejs.doSearch(dashboard.indices, request).then(function(results) {
 

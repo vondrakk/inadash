@@ -55,7 +55,9 @@ require.config({
     numeral:                  '../vendor/numeral',
     jsonpath:                 '../vendor/jsonpath',
     elasticjs:                '../vendor/elasticjs/elastic-angular-client',
-    elasticsearch:            '../vendor/elasticsearch.angular'
+    elasticsearch:            '../vendor/elasticsearch.angular',
+    'd3': '../vendor/d3.min.js',
+    
   },
   shim: {
     angular: {

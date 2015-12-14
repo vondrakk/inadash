@@ -31,7 +31,6 @@ function (angular, app, _, $, kbn, d3) {
         {
           description: "Inspect",
           icon: "icon-info-sign",
-          partial: "app/partials/inspector.html",
           show: $scope.panel.spyable
         }
       ],
@@ -248,9 +247,6 @@ function (angular, app, _, $, kbn, d3) {
 	}
 
       }
-
-      // Populate the inspector panel
-		$scope.inspector = request.toJSON();
 
       $scope.ejs.doSearch(dashboard.indices, request).then(function(results) {
         $scope.panelMeta.loading = false;

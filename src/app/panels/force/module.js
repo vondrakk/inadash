@@ -14,7 +14,7 @@ define([
   'app',
   'lodash',
   'jquery',
-  'http://d3js.org/d3.v3.js'
+  'd3'
 ],
  function (angular, app, _, $, d3) {
   'use strict';
@@ -35,7 +35,6 @@ define([
         {
           description: "Inspect",
           icon: "icon-info-sign",
-          partial: "app/partials/inspector.html",
           show: $scope.panel.spyable
         }
       ],
@@ -147,8 +146,6 @@ define([
         )
         .size(0);
 
-      $scope.populate_modal(request);
-
       $scope.data = {};
 
       $scope.ejs.doSearch(dashboard.indices, request).then(function(results) {
@@ -202,10 +199,6 @@ define([
       });
 
       return;
-    };
-
-    $scope.populate_modal = function(request) {
-      $scope.inspector = request.toJSON();
     };
 
     $scope.pickCol = function(str) {

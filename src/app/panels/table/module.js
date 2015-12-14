@@ -41,7 +41,6 @@ function (angular, app, _, kbn, moment) {
         {
           description: "Inspect",
           icon: "icon-info-sign",
-          partial: "app/partials/inspector.html",
           show: $scope.panel.spyable
         }
       ],
@@ -388,8 +387,6 @@ function (angular, app, _, kbn, moment) {
           .postTags('@end-highlight@')
         ).sort(sort);
 
-      $scope.populate_modal(request);
-
       // Populate scope when we have results
       $scope.ejs.doSearch(dashboard.indices[_segment], request, $scope.panel.size*$scope.panel.pages).then(function(results) {
         $scope.panelMeta.loading = false;
@@ -463,10 +460,6 @@ function (angular, app, _, kbn, moment) {
         }
 
       });
-    };
-
-    $scope.populate_modal = function(request) {
-      $scope.inspector = request.toJSON();
     };
 
     $scope.without_kibana = function (row) {

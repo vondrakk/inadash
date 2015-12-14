@@ -174,15 +174,29 @@
       }
     },
     MapBox: {
-      url: function (id) {
-        return 'http://{s}.tiles.mapbox.com/v3/' + id + '/{z}/{x}/{y}.png';
-      },
+      url: 'http://api.mapbox.com/v4/{variant}/{z}/{x}/{y}.png?access_token={mapbox_api_token}',
       options: {
         attribution:
           'Imagery from <a href="http://mapbox.com/about/maps/">MapBox</a> &mdash; ' +
           'Map data {attribution.OpenStreetMap}',
         subdomains: 'abcd'
-      }
+      },
+      variants: {
+        Streets: 'mapbox.streets',
+        Light: 'mapbox.light',
+        Dark: 'mapbox.dark',
+        Satellite: 'mapbox.satellite',
+        StreetsSatellite: 'mapbox.streets-satellite',
+        Wheatpaste: 'mapbox.wheatpaste',
+        StreetsBasic: 'mapbox.streets-basic',
+        Comic: 'mapbox.comic',
+        Outdoors: 'mapbox.outdoors',
+        RunBikeHike: 'mapbox.run-bike-hike',
+        Pencil: 'mapbox.pencil',
+        Pirates: 'mapbox.pirates',
+        Emerald: 'mapbox.emerald',
+        HighContrast: 'mapbox.high-contrast'
+	  }
     },
     Stamen: {
       url: 'http://{s}.tile.stamen.com/{variant}/{z}/{x}/{y}.png',
@@ -343,7 +357,7 @@
       url:
         'https://{s}.{base}.maps.cit.api.here.com/maptile/2.1/' +
         'maptile/{mapID}/{variant}/{z}/{x}/{y}/256/png8?' +
-        'app_id={app_id}&app_code={app_code}',
+        'app_id={here_app_id}&app_code={here_app_code}',
       options: {
         attribution:
           'Map &copy; 1987-2014 <a href="http://developer.here.com">HERE</a>',

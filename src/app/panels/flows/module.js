@@ -32,7 +32,6 @@ define([
         {
           description: "Inspect",
           icon: "icon-info-sign",
-          partial: "app/partials/inspector.html",
           show: $scope.panel.spyable
         }
       ],
@@ -161,8 +160,6 @@ define([
           ))
         )
         .size(0);
-
-      $scope.populate_modal(request);
 
       $scope.data = {};
 
@@ -307,11 +304,6 @@ define([
 
       return;
     };
-
-    $scope.populate_modal = function(request) {
-      $scope.inspector = request.toJSON();
-    };
-
 
   });
 

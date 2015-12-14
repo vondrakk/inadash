@@ -33,7 +33,6 @@ define([
         {
           description: "Inspect",
           icon: "icon-info-sign",
-          partial: "app/partials/inspector.html",
           show: $scope.panel.spyable
         }
       ],
@@ -128,9 +127,6 @@ define([
           $scope.ejs.FilterAggregation(q.id).filter($scope.ejs.QueryFilter(_q))
         ).size(0);
       });
-
-      // Populate the inspector panel
-      $scope.inspector = request.toJSON();
 
       // Then run it
       var results = $scope.ejs.doSearch(dashboard.indices[_segment], request);

@@ -44,7 +44,6 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
         {
           description: "Inspect",
           icon: "icon-info-sign",
-          partial: "app/partials/inspector.html",
           show: $scope.panel.spyable
         }
       ],
@@ -409,9 +408,6 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
         ]);
       }
 
-      // Populate the inspector panel
-      $scope.populate_modal(request);
-
       // Then run it
       results = $scope.ejs.doSearch(dashboard.indices[segment], request);
 
@@ -577,11 +573,6 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
         to:moment.utc(_to).toDate(),
         field:$scope.panel.time_field
       });
-    };
-
-    // I really don't like this function, too much dom manip. Break out into directive?
-    $scope.populate_modal = function(request) {
-      $scope.inspector = request.toJSON();
     };
 
     $scope.set_refresh = function (state) {

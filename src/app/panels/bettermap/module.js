@@ -32,7 +32,7 @@ define([
 function (angular, app, _, L, localRequire) {
   'use strict';
 
-  var module = angular.module('kibana.panels.bettermap', []);
+  var module = angular.module('kibana.panels.bettermap', ['./leaflet/plugins']);
   app.useModule(module);
 
   module.controller('bettermap', function($scope, querySrv, dashboard, filterSrv) {
@@ -47,7 +47,6 @@ function (angular, app, _, L, localRequire) {
         {
           description: "Inspect",
           icon: "icon-info-sign",
-          partial: "app/partials/inspector.html",
           show: $scope.panel.spyable
         }
       ],
@@ -92,7 +91,7 @@ function (angular, app, _, L, localRequire) {
 			'OpenMapSurfer':['Roads','AdminBounds','Grayscale'],
 			'Hydda':['Full','Base','RoadsAndLabels'],
 			'MapQuestOpen':['OSM','Aerial'],
-			'MapBox':[],
+			'MapBox':['Streets','Light','Dark','Satellite','StreetsSatellite','Wheatpaste','StreetsBasic','Comic','Outdoors','RunBikeHike','Pencil','Pirates','Emerald','HighContrast'],
 			'Stamen':['Toner','TonerBackground','TonerHybrid','TonerLines','TonerLabels','TonerLite','Terrain','TerrainBackground','Watercolor'],
 			'Esri':['WorldStreetMap','DeLorme','WorldTopoMap','WorldImagery','WorldTerrain','WorldShadedRelief','WorldPhysical','OceanBasemap','NatGeoWorldMap','WorldGrayCanvas'],
 			'OpenWeatherMap':['Clouds','CloudsClassic','Precipitation','PrecipitationClassic','Rain','RainClassic','Pressure','PressureContour','Wind','Temperature','Snow'],
@@ -158,7 +157,6 @@ function (angular, app, _, L, localRequire) {
         queries,
         sort;
         
-      $scope.require(['./leaflet/plugins'], function () {
         $scope.panel.error =  false;
 
         // Make sure we have everything for the request to complete
@@ -207,8 +205,6 @@ function (angular, app, _, L, localRequire) {
           request = request.sort(timeField,'desc');
         }
 
-        $scope.populate_modal(request);
-
         // Populate scope when we have results
 		$scope.ejs.doSearch(dashboard.indices[_segment], request, $scope.panel.size).then(function(results) {
           $scope.panelMeta.loading = false;
@@ -243,7 +239,7 @@ function (angular, app, _, L, localRequire) {
             return;
           }
 
-          $scope.$emit('draw');
+          $scope.$emit('render');
 
           // Get $size results then stop querying
           if($scope.data.length < $scope.panel.size && _segment+1 < dashboard.indices.length) {
@@ -251,11 +247,6 @@ function (angular, app, _, L, localRequire) {
           }
 
         });
-      });
-    };
-
-    $scope.populate_modal = function(request) {
-      $scope.inspector = request.toJSON();
     };
 
   });
@@ -315,12 +306,15 @@ function (angular, app, _, L, localRequire) {
             if(_.isUndefined(map)) {
               map = map_factory();
 
+console.log(api.mapbox_api_token());
+
               // This could be made more configurable?
               L.tileLayer.provider(scope.panel.provider+'.'+scope.panel.variant, {
                 maxZoom: 18,
                 minZoom: 2,
-                app_id: api.app_id(),
-                app_code: api.app_code()
+                here_app_id: api.here_app_id(),
+                here_app_code: api.here_app_code(),
+                mapbox_api_token: api.mapbox_api_token()
               }).addTo(map);
               layerGroup = new L.MarkerClusterGroup({maxClusterRadius:30});
             } else {

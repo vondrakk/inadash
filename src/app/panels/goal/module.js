@@ -35,7 +35,6 @@ define([
         {
           description: "Inspect",
           icon: "icon-info-sign",
-          partial: "app/partials/inspector.html",
           show: $scope.panel.spyable
         }
       ],
@@ -133,8 +132,6 @@ define([
         .query(boolQuery)
         .filter(filterSrv.getBoolFilter(filterSrv.ids()))
         .size(0);
-
-      $scope.inspector = request.toJSON();
 
       results = $scope.ejs.doSearch(dashboard.indices, request);
 
